@@ -6,10 +6,55 @@ import warnings
 import calendar
 warnings.filterwarnings('ignore')
 
+def remove_top_padding():
+    st.markdown(
+        """
+        <style>
+        /* Remove top, bottom, and left padding from main container */
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0.5rem;
+            padding-left: 2rem;
+            padding-right: 0.5rem;
+        }
+
+        /* Reduce margin for h1 and h2 */
+        h1, h2 {
+            margin-top: 0rem;
+            margin-bottom: 0.5rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+def remove_scrollbar():
+    st.markdown(
+        """
+        <style>
+            /* Remove main scrollbar */
+            .main {
+                overflow: hidden;
+            }
+            /* Fit container to screen height */
+            .block-container {
+                height: 100vh;
+                padding-top: 1rem;
+                padding-bottom: 0rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+remove_top_padding()
+remove_scrollbar()
 st.set_page_config(page_title="Dashboard", page_icon=":bar_chart:", layout="wide")
 
 st.title("Purchase Dashboard")
-st.markdown('<style>div.block-container{padding-top:2rem;}</style>', unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["📊 LPO Summary", "🌍 GDP vs Life", "📈 Life Expectancy"])
+
 
 @st.cache_data
 def load_data():
@@ -17,27 +62,18 @@ def load_data():
     lpo_data = pd.read_csv(os.path.join("data", "lpo_data.csv"))
     lpo_grn_gross_amount = pd.read_csv(os.path.join("data", "lpo_grn_gross_amount.csv"))
     lpo_grn_net_values = pd.read_csv(os.path.join("data", "lpo_grn_net_values.csv"))
-    lpo_grn = pd.read_csv(os.path.join("data", "lpo_grn.csv"))
-    return grn_data, lpo_data, lpo_grn_gross_amount, lpo_grn_net_values, lpo_grn
+    return grn_data, lpo_data, lpo_grn_gross_amount, lpo_grn_net_values
 
-# ✅ Call function here, outside of its definition
-grn_data, lpo_data, lpo_grn_gross_amount, lpo_grn_net_values, lpo_grn = load_data()
+
+grn_data, lpo_data, lpo_grn_gross_amount, lpo_grn_net_values = load_data()
+
 grn_data['Year']=grn_data['Year'].astype('str')
 lpo_data['Year']=lpo_data['Year'].astype('str')
-
-
 total_lpo = lpo_data["Amount"].sum()
 total_grn = grn_data["Amount"].sum()
 difference = total_lpo - total_grn
 
-
-#col1, col2 = st.columns(2)
-#col1.metric("LPO Amount", f"{total_lpo:,.0f}")
-#col2.metric("GRN Amount", f"{total_grn:,.0f}")
-
-
 st.header('LPO Dashboard', divider="red")
-
 
 col1,col2=st.columns([0.5,2])
 selected_year_lpo=col1.multiselect('Choose the Year',sorted(lpo_data['Year'].unique()))
@@ -59,7 +95,7 @@ lpo_pur_year = lpo_data.groupby('Year')['Amount'].sum().reset_index()
 lpo_pur_year['Year']=lpo_pur_year['Year'].astype(int).astype(str)
 lpo_pur_year['Amount'] = (lpo_pur_year['Amount'] / 1_000_000).round(1)
 
-# Create the bar chart using Plotly
+
 fig_bar = px.bar(lpo_pur_year, 
                 x='Year', 
                 y='Amount',
@@ -72,8 +108,10 @@ fig_bar.update_xaxes(
 )
 fig_bar.update_yaxes(tickformat=",")
 
-col2.subheader("LPO Yearly Summary", divider="blue")
-col2.plotly_chart(fig_bar, use_container_width=True)
+
+with tab1:
+    st.subheader("LPO Yearly Summary", divider="blue")
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 
 lpo_pur_year_month = lpo_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
@@ -87,8 +125,6 @@ lpo_pur_year_month['YearMonth'] = lpo_pur_year_month['Year'].astype(str) + "-" +
 
 lpo_pur_year_month['Amount'] = (lpo_pur_year_month['Amount'] / 1_000_000).round(1)
 # Sort
-#lpo_pur_year_month = lpo_pur_year_month.sort_values(by='Amount', ascending=False)
-
 # Create bar chart
 fig_bar2 = px.bar(
     lpo_pur_year_month, 
@@ -147,9 +183,7 @@ fig_bar.update_yaxes(tickformat=",")
 col4.subheader("GRN Yearly Summary", divider="blue")
 col4.plotly_chart(fig_bar, use_container_width=True)
 
-
 grn_pur_year_month = grn_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
-
 
 # Convert numeric months to names
 if grn_pur_year_month['Month'].dtype != object:
@@ -172,3 +206,52 @@ fig_bar2.update_yaxes(tickformat=",")
 
 col4.subheader("GRN Monthly Summary", divider="blue")
 col4.plotly_chart(fig_bar2, use_container_width=True)
+
+
+
+import plotly.graph_objects as go
+import numpy as np
+
+# Prepare data
+years = lpo_pur_year['Year']
+amounts = lpo_pur_year['Amount']
+
+# Create bar chart with initial 0 heights
+fig_bar = go.Figure(
+    data=[go.Bar(x=years, y=[0]*len(amounts), text=[f"{amt}" for amt in amounts], textposition="outside")]
+)
+
+# Add animation frames (from 0 to actual values)
+frames = [
+    go.Frame(
+        data=[go.Bar(x=years, y=list(amounts))],
+        name="final"
+    )
+]
+fig_bar.frames = frames
+
+# Layout with animation
+fig_bar.update_layout(
+    xaxis=dict(tickmode='array', tickvals=years, ticktext=years),
+    yaxis=dict(tickformat=","),
+    updatemenus=[{
+        "type": "buttons",
+        "showactive": False,
+        "buttons": [{
+            "label": "▶ Play",
+            "method": "animate",
+            "args": [None, {"frame": {"duration": 800, "redraw": True}, "fromcurrent": True}]
+        }]
+    }]
+)
+
+# Start animation automatically
+fig_bar.update_layout(transition=dict(duration=800))
+
+
+with tab2:
+    st.subheader("LPO Yearly Summary", divider="blue")
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+with tab3:
+    pass
