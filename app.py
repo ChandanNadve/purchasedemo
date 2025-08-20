@@ -94,10 +94,11 @@ with st.sidebar:
 if main_menu == "🛒Purchase":
     # Define Purchase tabs
     report_title("Purchase Dashboard")
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3,tab4 = st.tabs([
         "📊 LPO Yearly Dashboard",
         "🌍 GRN Yearly Dashboard",
-        "📈 GRN Monthly Dashboard"
+        "📈 GRN Monthly Dashboard",
+        "📈 LPO Monthly Dashboard"
     ])
 
     grn_data, lpo_data, lpo_grn_gross_amount, lpo_grn_net_values, employee_strength_data  = load_data_purchase()
@@ -131,186 +132,202 @@ if main_menu == "🛒Purchase":
                 else:
                     lpo_data = lpo_data[lpo_data['Month'].isin(selected_mon_lpo)]
 
+    view_option = st.radio("Select View", ["Yearly", "Monthly"], horizontal=True)
+    if view_option == "Yearly":
+
+        lpo_pur_year = lpo_data.groupby('Year')['Amount'].sum().reset_index()
+        lpo_pur_year['Year'] = lpo_pur_year['Year'].astype(int).astype(str)
+        lpo_pur_year['Amount'] = (lpo_pur_year['Amount'] / 1_000_000).round(1)
 
 
+        fig_bar = px.bar(
+                lpo_pur_year, 
+                x='Year', 
+                y='Amount',
+                text_auto=True,
+                title='LPO Value OMR (in millions) - Yearly',
+                color_discrete_sequence=["#90EE90"]  # light green
+            )
+        fig_bar.update_xaxes(
+                tickmode='array', 
+                tickvals=lpo_pur_year['Year'], 
+                ticktext=lpo_pur_year['Year']
+            )
+        fig_bar.update_yaxes(tickformat=",")
 
-       total_lpo = lpo_data["Amount"].sum()
-       col1P.metric("LPO Amount", f"{total_lpo/1_000_000:,.2f} M")
+        fig_pie = px.pie(
+                lpo_pur_year, 
+                names='Year', 
+                values='Amount',
+                title='Net Amount LPO',
+                hole=0.4,   # donut style
+                color_discrete_sequence=px.colors.sequential.Greens
+            )
+        fig_pie.update_traces(textinfo='percent+label')
 
-       lpo_pur_year = lpo_data.groupby('Year')['Amount'].sum().reset_index()
-       lpo_pur_year['Year']=lpo_pur_year['Year'].astype(int).astype(str)
-       lpo_pur_year['Amount'] = (lpo_pur_year['Amount'] / 1_000_000).round(1)
+    elif view_option == "Monthly":
 
+        lpo_pur_month = lpo_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
 
-       fig_bar = px.bar(lpo_pur_year, 
-                        x='Year', 
-                        y='Amount',
-                        text_auto=True,
-                        title='LPO Value OMR (in millions)- Yearly',
-                        color_discrete_sequence=["#006400"] )
-        # Show all year labels
-       fig_bar.update_xaxes(
-            tickmode='array', 
-            tickvals=lpo_pur_year['Year'], 
-            ticktext=lpo_pur_year['Year']
-       )
-       fig_bar.update_yaxes(tickformat=",")
+        # Format Year-Month as YYYY-MM
+        lpo_pur_month['YearMonth'] = lpo_pur_month['Year'].astype(str) + "-" + lpo_pur_month['Month'].astype(str).str.zfill(2)
+        lpo_pur_month['Amount'] = (lpo_pur_month['Amount'] / 1_000_000).round(1)
 
+        fig_bar = px.bar(
+        lpo_pur_month, 
+        x='YearMonth', 
+        y='Amount',
+        text_auto=True,
+        title='LPO Value OMR (in millions) - Monthly',
+        color_discrete_sequence=["#90EE90"]
+    )
+        fig_bar.update_xaxes(
+        tickmode='array', 
+        tickvals=lpo_pur_month['YearMonth'], 
+        ticktext=lpo_pur_month['YearMonth']
+    )
+        fig_bar.update_yaxes(tickformat=",")
 
+        fig_pie = px.pie(
+        lpo_pur_month, 
+        names='YearMonth', 
+        values='Amount',
+        title='Net Amount LPO (Monthly)',
+        hole=0.4,
+        color_discrete_sequence=px.colors.sequential.Greens
+    )
+    fig_pie.update_traces(textinfo='percent+label')
 
-       fig_bar.update_layout(
-            autosize=True,
-            height=500   # 👈 match the CSS height
-        )
-
-       # --- New Pie Chart ---
-       fig_pie = px.pie(
-            lpo_pur_year, 
-            names='Year', 
-            values='Amount',
-            title='Net Amount LPO',
-            hole=0.4,   # donut style
-            color_discrete_sequence=px.colors.sequential.Greens  # gradient green
-       )
-       fig_pie.update_traces(textinfo='percent+label')
-
-       fig_pie.update_layout(
-            autosize=True,
-            height=500   # 👈 match the CSS height
-        )
-
-        # --- Show side by side ---
-       col1, col2 = st.columns([3,2])
-       with col1:
-            st.plotly_chart(fig_bar, use_container_width=True)
-       with col2:
+    col1, col2 = st.columns([3,2])
+    with col1:
+            clicked = st.plotly_chart(fig_bar, use_container_width=True, key="lpo_chart", on_select="rerun")
+    with col2:
             st.plotly_chart(fig_pie, use_container_width=True)
 
+    lpo_pur_year_month = lpo_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
 
-       lpo_pur_year_month = lpo_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
+            # Convert numeric months to names
+    if lpo_pur_year_month['Month'].dtype != object:
+                lpo_pur_year_month['Month'] = lpo_pur_year_month['Month'].apply(lambda x: calendar.month_abbr[int(x)])
 
-        # Convert numeric months to names
-       if lpo_pur_year_month['Month'].dtype != object:
-            lpo_pur_year_month['Month'] = lpo_pur_year_month['Month'].apply(lambda x: calendar.month_abbr[int(x)])
+    lpo_pur_year_month['YearMonth'] = lpo_pur_year_month['Year'].astype(str) + "-" + lpo_pur_year_month['Month']
 
-       lpo_pur_year_month['YearMonth'] = lpo_pur_year_month['Year'].astype(str) + "-" + lpo_pur_year_month['Month']
+    lpo_pur_year_month['Amount'] = (lpo_pur_year_month['Amount'] / 1_000_000).round(1)
+            # Sort
+            # Create bar chart
+    fig_bar2 = px.bar(
+                lpo_pur_year_month, 
+                x='YearMonth', 
+                y='Amount',
+                text_auto=True
+            )
+    fig_bar2.update_yaxes(tickformat=",") 
 
-       lpo_pur_year_month['Amount'] = (lpo_pur_year_month['Amount'] / 1_000_000).round(1)
-        # Sort
-        # Create bar chart
-       fig_bar2 = px.bar(
-            lpo_pur_year_month, 
-            x='YearMonth', 
-            y='Amount',
-            text_auto=True
-        )
-       fig_bar2.update_yaxes(tickformat=",") 
-
-       #st.subheader("LPO Monthly Summary", divider="blue")
-       #st.plotly_chart(fig_bar2, use_container_width=True)
+        #st.subheader("LPO Monthly Summary", divider="blue")
+        #st.plotly_chart(fig_bar2, use_container_width=True)
 
 
-    
+        
 
     total_grn = grn_data["Amount"].sum()
     with tab2:
-        col3,col3a,col4=st.columns([1.4,5,3])
-        col3.metric("GRN Amount", f"{total_grn/1_000_000:,.2f} M")
+            col3,col3a,col4=st.columns([1.4,5,3])
+            col3.metric("GRN Amount", f"{total_grn/1_000_000:,.2f} M")
 
-        with col4.expander("⚙️ Show Filters"):
-            col1, col2 = st.columns([1, 1])
+            with col4.expander("⚙️ Show Filters"):
+                col1, col2 = st.columns([1, 1])
 
-            selected_year_grn = col1.multiselect('Choose the Year',sorted(grn_data['Year'].unique()), key="year_grn")
+                selected_year_grn = col1.multiselect('Choose the Year',sorted(grn_data['Year'].unique()), key="year_grn")
 
-            if not selected_year_grn:
-                grn_data = grn_data.copy()
-            else:
-                grn_data = grn_data[grn_data['Year'].isin(selected_year_grn)]
+                if not selected_year_grn:
+                    grn_data = grn_data.copy()
+                else:
+                    grn_data = grn_data[grn_data['Year'].isin(selected_year_grn)]
 
-            selected_mon_grn = col2.multiselect(
-                'Choose the Month',
-                sorted(grn_data['Month'].unique()),
-                       key="month_grn" 
+                selected_mon_grn = col2.multiselect(
+                    'Choose the Month',
+                    sorted(grn_data['Month'].unique()),
+                        key="month_grn" 
+                )
+
+                if not selected_mon_grn:
+                    grn_data = grn_data.copy()
+                else:
+                    grn_data = grn_data[grn_data['Month'].isin(selected_mon_grn)]
+
+            grn_pur_year = grn_data.groupby('Year')['Amount'].sum().reset_index()
+            if grn_pur_year['Year'].dtype != object:
+                grn_pur_year['Year'] = grn_pur_year['Year'].apply(lambda x: str(int(x)))
+
+            # Sort the DataFrame in descending order based on TOTALAMOUNT
+            grn_pur_year = grn_pur_year.sort_values(by='Amount', ascending=False)
+            grn_pur_year['Year'] = grn_pur_year['Year'].astype(int).astype(str)
+            grn_pur_year['Amount'] = (grn_pur_year['Amount'] / 1_000_000).round(1)
+
+            # Create the bar chart using Plotly
+            fig_bar1 = px.bar(grn_pur_year, 
+                            x='Year', 
+                            y='Amount',
+                            text_auto=True,
+                            title='GRN Value OMR (in millions)- Yearly',
+                                color_discrete_sequence=["#006400"])
+            # Show all year labels
+            fig_bar1.update_xaxes(
+                tickmode='array', 
+                tickvals=grn_pur_year['Year'], 
+                ticktext=grn_pur_year['Year']
             )
-
-            if not selected_mon_grn:
-                grn_data = grn_data.copy()
-            else:
-                grn_data = grn_data[grn_data['Month'].isin(selected_mon_grn)]
-
-        grn_pur_year = grn_data.groupby('Year')['Amount'].sum().reset_index()
-        if grn_pur_year['Year'].dtype != object:
-            grn_pur_year['Year'] = grn_pur_year['Year'].apply(lambda x: str(int(x)))
-
-        # Sort the DataFrame in descending order based on TOTALAMOUNT
-        grn_pur_year = grn_pur_year.sort_values(by='Amount', ascending=False)
-        grn_pur_year['Year'] = grn_pur_year['Year'].astype(int).astype(str)
-        grn_pur_year['Amount'] = (grn_pur_year['Amount'] / 1_000_000).round(1)
-
-        # Create the bar chart using Plotly
-        fig_bar1 = px.bar(grn_pur_year, 
-                        x='Year', 
-                        y='Amount',
-                        text_auto=True,
-                        title='GRN Value OMR (in millions)- Yearly',
-                            color_discrete_sequence=["#006400"])
-        # Show all year labels
-        fig_bar1.update_xaxes(
-            tickmode='array', 
-            tickvals=grn_pur_year['Year'], 
-            ticktext=grn_pur_year['Year']
-        )
-        fig_bar.update_yaxes(tickformat=",")
+            fig_bar.update_yaxes(tickformat=",")
 
     with tab2:
-        fig_bar1.update_layout(
-            autosize=True,
-            height=500   # 👈 match the CSS height
-        )
-    # --- New Pie Chart ---
-        fig_pie1 = px.pie(
-                grn_pur_year, 
-                names='Year', 
-                values='Amount',
-                title='Net Amount GRN',
-                hole=0.4,   # donut style
-                color_discrete_sequence=px.colors.sequential.Greens  # gradient green
-        )
-        fig_pie1.update_traces(textinfo='percent+label')
-
-        fig_pie1.update_layout(
+            fig_bar1.update_layout(
                 autosize=True,
                 height=500   # 👈 match the CSS height
             )
-        col1, col2 = st.columns([3,2])
-        with col1:
-                st.plotly_chart(fig_bar1, use_container_width=True)
-        with col2:
-                st.plotly_chart(fig_pie1, use_container_width=True)
+        # --- New Pie Chart ---
+            fig_pie1 = px.pie(
+                    grn_pur_year, 
+                    names='Year', 
+                    values='Amount',
+                    title='Net Amount GRN',
+                    hole=0.4,   # donut style
+                    color_discrete_sequence=px.colors.sequential.Greens  # gradient green
+            )
+            fig_pie1.update_traces(textinfo='percent+label')
 
-        grn_pur_year_month = grn_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
+            fig_pie1.update_layout(
+                    autosize=True,
+                    height=500   # 👈 match the CSS height
+                )
+            col1, col2 = st.columns([3,2])
+            with col1:
+                    st.plotly_chart(fig_bar1, use_container_width=True)
+            with col2:
+                    st.plotly_chart(fig_pie1, use_container_width=True)
+
+    grn_pur_year_month = grn_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
 
         # Convert numeric months to names
-        if grn_pur_year_month['Month'].dtype != object:
+    if grn_pur_year_month['Month'].dtype != object:
             grn_pur_year_month['Month'] = grn_pur_year_month['Month'].apply(lambda x: calendar.month_abbr[int(x)])
 
         # Combine for display
-        grn_pur_year_month['YearMonth'] = grn_pur_year_month['Year'].astype(str) + "-" + grn_pur_year_month['Month']
-        grn_pur_year_month['Amount'] = (grn_pur_year_month['Amount'] / 1_000_000).round(1)
+    grn_pur_year_month['YearMonth'] = grn_pur_year_month['Year'].astype(str) + "-" + grn_pur_year_month['Month']
+    grn_pur_year_month['Amount'] = (grn_pur_year_month['Amount'] / 1_000_000).round(1)
         # Sort
         #grn_pur_year_month = grn_pur_year_month.sort_values(by='Amount', ascending=False)
 
         # Create bar chart
-        fig_bar2 = px.bar(
+    fig_bar2 = px.bar(
             grn_pur_year_month, 
             x='YearMonth', 
             y='Amount',
             text_auto=True,  color_discrete_sequence=["#006400"],title = "GRN Monthly Summary"
         )
-        fig_bar2.update_yaxes(tickformat=",") 
+    fig_bar2.update_yaxes(tickformat=",") 
 
         
-        fig_bar2.update_layout(
+    fig_bar2.update_layout(
                 autosize=True,
                 height=500   # 👈 match the CSS height
             )
@@ -318,13 +335,42 @@ if main_menu == "🛒Purchase":
     with tab3:
         st.plotly_chart(fig_bar2, use_container_width=True)
 
-   
+    pur_year_month = lpo_data.groupby(['Year', 'Month'])['Amount'].sum().reset_index()
+
+        # Convert numeric months to names
+    if pur_year_month['Month'].dtype != object:
+            pur_year_month['Month'] = pur_year_month['Month'].apply(lambda x: calendar.month_abbr[int(x)])
+
+        # Combine for display
+    pur_year_month['YearMonth'] = pur_year_month['Year'].astype(str) + "-" + pur_year_month['Month']
+    pur_year_month['Amount'] = (pur_year_month['Amount'] / 1_000_000).round(1)
+        # Sort
+        #grn_pur_year_month = grn_pur_year_month.sort_values(by='Amount', ascending=False)
+
+        # Create bar chart
+    fig_bar3 = px.bar(
+            pur_year_month, 
+            x='YearMonth', 
+            y='Amount',
+            text_auto=True,  color_discrete_sequence=["#006400"],title = "LPO Monthly Summary"
+        )
+    fig_bar3.update_yaxes(tickformat=",") 
+
+        
+    fig_bar3.update_layout(
+                autosize=True,
+                height=500   # 👈 match the CSS height
+            )
+
+    with tab4:
+        st.plotly_chart(fig_bar3, use_container_width=True)
+
 elif main_menu == "👥HR":
     # Define HR tab
     report_title("HR Dashboard")
-    tab4,tab5,tab6,tab7 = st.tabs(["👥Yearly Strength","👥Monthly Strength ","🔃In and Out","📑Visa Expiry"])
+    tab10,tab11,tab12,tab13 = st.tabs(["👥Yearly Strength","👥Monthly Strength ","🔃In and Out","📑Visa Expiry"])
     
-    with tab4:
+    with tab10:
         # Put HR charts, filters, metrics here
         total_employee_strength_data,in_out_strength,visa_expiry=load_data_hr()
 
@@ -345,28 +391,63 @@ elif main_menu == "👥HR":
         yearly_strength = yearly_strength[total_employee_strength_data["YEAR"] >= 2013]
         yearly_strength = (yearly_strength.groupby('YEAR')['STRENGTH'].sum().reset_index())
             
+        if "selected_year" not in st.session_state:
+            st.session_state.selected_year = None
+        if st.session_state.selected_year is None:
+             
+            fig_hr = px.bar(yearly_strength,
+            x="YEAR",
+            y="STRENGTH",
+            text_auto=True,
+            title = "Total Employee Strenght - Yearly",
+            color_discrete_sequence=["#006400"] )
+        
+            fig_hr.update_xaxes(
+            tickmode='array', 
+            tickvals=yearly_strength['YEAR'], 
+            ticktext=yearly_strength['YEAR'])
 
-        fig_hr = px.bar(yearly_strength,
-        x="YEAR",
-        y="STRENGTH",
-        text_auto=True,
-        title = "Total Employee Strenght - Yearly",
-        color_discrete_sequence=["#006400"] )
-    
-        fig_hr.update_xaxes(
-        tickmode='array', 
-        tickvals=yearly_strength['YEAR'], 
-        ticktext=yearly_strength['YEAR'])
+        else:
+        # Show monthly chart for selected year
+            monthly_strength = (total_employee_strength_data[total_employee_strength_data['YEAR'] == st.session_state.selected_year]
+            .groupby('MONTH')['STRENGTH'].sum().reset_index())
 
-     
+            month_order = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY",
+                    "AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"]
+            monthly_strength['MONTH'] = pd.Categorical(monthly_strength['MONTH'], categories=month_order, ordered=True)
+            monthly_strength = monthly_strength.sort_values('MONTH')
+
+            fig_hr = px.bar(
+            monthly_strength,
+            x="MONTH",
+            y="STRENGTH",
+            text_auto=True,
+            title=f"Total Employee Strength - Monthly ({st.session_state.selected_year})",
+            color_discrete_sequence=["#03fc98"]
+        )
+
+        with tab10:# ---- Show chart with click handling ----
+            clicked = st.plotly_chart(fig_hr, use_container_width=True, key="employee_strength", on_select="rerun")
+
+    # Capture clickData
+    if clicked and clicked["selection"]["points"]:
+        clicked_year = clicked["selection"]["points"][0].get("x")
+        if st.session_state.selected_year is None and clicked_year:
+            st.session_state.selected_year = int(clicked_year)
+            st.rerun()
+
+    # Add a "Back" button for going back to yearly view
+    if st.session_state.selected_year is not None:
+        if st.button("⬅ Back to Yearly View"):
+            st.session_state.selected_year = None
+            st.rerun()
         fig_hr.update_layout(
             autosize=True,
             height=500   # 👈 match the CSS height
         )
 
     
-    with tab4:
-                st.plotly_chart(fig_hr, use_container_width=True)
+    
 
    
     # Filter only LABOUR
@@ -409,7 +490,7 @@ elif main_menu == "👥HR":
             autosize=True,
             height=500   # 👈 match the CSS height
         )
-    with tab5:
+    with tab11:
         col4P,col44P=st.columns([1.5,3])
         with col4P.expander("⚙️ Show Filters"):
                     col1, col2 = st.columns([1, 1])
@@ -419,7 +500,7 @@ elif main_menu == "👥HR":
                     if not selected_mon_strength:monthly_labour_strength = monthly_labour_strength.copy()
                     else:
                         monthly_labour_strength = monthly_labour_strength[monthly_labour_strength['YEAR'].isin(selected_mon_strength)]
-    with tab5:
+    with tab11:
           st.plotly_chart(fig_labour, use_container_width=True)
 
     in_out_strength = in_out_strength[in_out_strength["Year"] >= 2013]
@@ -453,7 +534,7 @@ elif main_menu == "👥HR":
     fig_in_out.update_traces(textposition="outside")
     fig_in_out.update_xaxes(type='category')  # force discrete x-axis
 
-    with tab6:
+    with tab12:
         st.plotly_chart(fig_in_out, use_container_width=True)
         
         # Remove any trailing spaces in column names
@@ -468,6 +549,10 @@ elif main_menu == "👥HR":
     # Optional: sort by Year_Month
     visa_expiry = visa_expiry.sort_values(by=['Expiry_Year', 'Expiry_Month'])
 
+    staff_data = visa_expiry[visa_expiry['Employee_Type'] == "STAFF"]
+    worker_data = visa_expiry[visa_expiry['Employee_Type'] == "LABOUR"]
+
+
     # Plot
     fig_visa = px.bar(
         visa_expiry,
@@ -476,10 +561,30 @@ elif main_menu == "👥HR":
         color='Employee_Type', text_auto=True,
         title='Visa Expiry Report',color_discrete_sequence=["#006400", "#90EE90","#228B22"]
     )
-    fig_visa.update_layout(
-            autosize=True,
-            height=500   # 👈 match the CSS height
-        )
+
+    fig_staff_visa = px.bar(
+        staff_data,
+        x='Year_Month',
+        y='Total_by_Month',
+        color='Employee_Type', text_auto=True,
+        title='Visa Expiry - Staff',color_discrete_sequence=["#006400", "#90EE90","#228B22"]
+    )
+
+    fig_worker_visa = px.bar(
+        worker_data,
+        x='Year_Month',
+        y='Total_by_Month',
+        color='Employee_Type', text_auto=True,
+        title='Visa Expiry - Workers',color_discrete_sequence=["#006400", "#90EE90","#228B22"]
+    )
+    #fig_visa.update_layout(autosize=True,height=500  )
     
-    with tab7:
+    with tab13:
         st.plotly_chart(fig_visa, use_container_width=True)
+
+    with tab13:
+        col1A, col2A = st.columns([1,1])
+        with col1A:
+            st.plotly_chart(fig_staff_visa, use_container_width=True)
+        with col2A:
+            st.plotly_chart(fig_worker_visa, use_container_width=True)
